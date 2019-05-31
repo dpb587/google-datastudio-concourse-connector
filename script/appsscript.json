@@ -1,0 +1,18 @@
+{
+  "timeZone": "America/Los_Angeles",
+  "dependencies": {
+  },
+  "dataStudio": {
+    "name": "Concourse Connector - Builds",
+    "logoUrl": "https://github.com/concourse.png",
+    "company": "Danny Berger",
+    "companyUrl": "https://dpb587.me",
+    "addonUrl": "https://github.com/dpb587/google-datastudio-connector-concourse-builds",
+    "supportUrl": "https://github.com/dpb587/google-datastudio-connector-concourse-builds/issues",
+    "description": "Get build data from your Concourse installation(s).",
+    "sources": [
+      "concourse"
+    ]
+  },
+  "exceptionLogging": "STACKDRIVER"
+}
