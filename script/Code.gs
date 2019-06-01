@@ -1,6 +1,47 @@
+var server = "https://e7921f84.ngrok.io";
+var auth = null;
+
 function getAuthType() {
-  var response = { type: 'NONE' };
-  return response;
+  return { type: 'USER_PASS' };
+}
+
+function isAuthValid(request) {
+  var userProperties = PropertiesService.getUserProperties();
+  var username = userProperties.getProperty('dscc.username');
+
+  if (username == "") {
+    return false;
+  }
+
+  try {
+    sendServerRequest("/builds?since=2019-05-30") // TODO better validation endpoint
+  } catch (e) {
+    Logger.log(e);
+    return false;
+  }
+
+  return true;
+}
+
+function getCredentialsAuthorizationHeader() {
+  var userProperties = PropertiesService.getUserProperties();
+  var username = userProperties.getProperty('dscc.username');
+  var password = userProperties.getProperty('dscc.password');
+
+  return "Basic " + Utilities.base64Encode(username + ":" + password);
+}
+
+function setCredentials(request) {
+  var username = request.userPass.username;
+  var password = request.userPass.password;
+
+  var userProperties = PropertiesService.getUserProperties();
+  userProperties.setProperty('dscc.username', username);
+  userProperties.setProperty('dscc.password', password);
+
+  return {
+    errorCode: 'NONE'
+  };
 }
 
 function isAdminUser() {
@@ -11,13 +52,19 @@ function getConfig(request) {
   var cc = DataStudioApp.createCommunityConnector();
   var config = cc.getConfig();
 
-  config.newInfo()
-    .setId('info0')
-    .setText('Enter your Concourse connection details.');
+  if (server == "") {
+    config.newInfo()
+      .setId('info0')
+      .setText('Enter your Concourse Data Connector Server connection details.');
 
-  config.newTextInput()
-    .setId('server')
-    .setName('Concourse Data Connector Server');
+    config.newTextInput()
+      .setId('server')
+      .setName('Concourse Data Connector Server');
+  } else {
+    config.newInfo()
+      .setId("info0")
+      .setText("The default Concourse Data Connector Server will be used.");
+  }
 
   config.setDateRangeRequired(true);
 
@@ -102,30 +149,38 @@ function getSchema(request) {
 }
 
 function getData(request) {
+  Logger.log(JSON.stringify(request));
+
+  var parsedResponse = sendServerRequest([
+    '/builds?',
+    '&since=' + request.dateRange.startDate,
+    '&until=' + request.dateRange.endDate
+  ].join(''));
+
   var requestedFieldIds = request.fields.map(function(field) {
     return field.name;
   });
   var requestedFields = getFields().forIds(requestedFieldIds);
 
-  // Fetch and parse data from API
-  var url = [
-    request.configParams.server,
-    '/builds',
-    '?',
-    '&since=' + request.dateRange.startDate,
-    '&until=' + request.dateRange.endDate
-  ];
-
-  var response = UrlFetchApp.fetch(url.join(''));
-  var parsedResponse = JSON.parse(response);
-  var rows = responseToRows(requestedFields, parsedResponse);
-
   var result = {
     schema: requestedFields.build(),
-    rows: rows
+    rows: responseToRows(requestedFields, parsedResponse)
   };
 
   return result;
+}
+
+function sendServerRequest(uri) {
+  var response = UrlFetchApp.fetch(
+    server + uri,
+    {
+      headers: {
+        "Authorization": getCredentialsAuthorizationHeader()
+      }
+    }
+  );
+
+  return JSON.parse(response);
 }
 
 function responseToRows(requestedFields, response) {
